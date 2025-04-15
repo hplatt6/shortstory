@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Canvas Drawing</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+      body { margin: 0; }
+      #canvasContainer {
+        width: 100%;
+        max-width: 600px;
+        margin: 0 auto;
+        border: 1px solid #ccc;
+        position: relative;
+      }
+      #drawingCanvas {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 5/3;
+        border: 1px solid #000;
+        background-color: white;
+        display: block;
+      }
+      #controls {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        margin-top: 10px;
+        position: relative;
+        z-index: 2;
+      }
+      #colorPickerContainer {
+        margin: 5px;
+        flex: none;
+      }
+      #colorPicker {
+        width: 40px;
+        height: 40px;
+        border: none;
+        padding: 0;
+        background-image: url('gradient.svg');
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        border-radius: 50%;
+        cursor: pointer;
+      }
+      #colorPicker::-webkit-color-swatch-wrapper {
+        padding: 0;
+      }
+      #colorPicker::-webkit-color-swatch {
+        border: none;
+        border-radius: 50%;
+      }
+
+      #colorButtons button, #brushSizeSliderContainer, #clearButton, #saveButton {
+        margin: 5px;
+        flex: none;
+      }
+      #colorButtons button {
+        border: 1px solid #ccc;
+        padding: 10px;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+      }
+      #colorButtons button:hover {
+        border: 2px solid gray;
+      }
+      #brushSizeSliderContainer {
+        width: 150px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      #brushSizeSlider {
+        width: 100%;
+      }
+      #clearButton, #saveButton {
+        border: 1px solid #ccc;
+        padding: 5px;
+      }
+    </style>
+</head>
+<body>
+    <div id="canvasContainer">
+        <canvas id="drawingCanvas"></canvas>
+    </div>
+    <div id="controls">
+        <div id="brushSizeSliderContainer">
+          <label for="brushSizeSlider">Brush Size: </label>
+          <input type="range" id="brushSizeSlider" min="1" max="20" value="5">
+        </div>
+        <div id="saveMessage" style="
+    display: none;
+    text-align: center;
+    margin-top: 10px;
+    font-size: 16px;
+    color: green;
+    font-weight: bold;
+    transition: opacity 0.5s ease-in-out;
+">
+    ✅ Drawing saved!
+</div>
+
+        <div id="colorButtons">
+            <button data-color="red" style="background-color: red;"></button>
+            <button data-color="blue" style="background-color: blue;"></button>
+            <button data-color="black" style="background-color: black;"></button>
+            <button data-color="white" style="background-color: white; border: 1px solid gray;"></button>
+            <button data-color="gray" style="background-color: gray;"></button>
+            <button data-color="orange" style="background-color: orange;"></button>
+            <button data-color="purple" style="background-color: purple;"></button>
+            <button data-color="yellow" style="background-color: yellow;"></button>
+            <button data-color="green" style="background-color: green;"></button>
+            <button data-color="brown" style="background-color: brown;"></button>
+            <button data-color="lightblue" style="background-color: lightblue;"></button>
+            <button data-color="pink" style="background-color: pink;"></button>
+        </div>
+        <div id="colorPickerContainer">
+          <input type="color" id="colorPicker" value="#000000" style="background-image: linear-gradient(to right, red, orange, yellow, green, blue, purple);">
+        </div>
+        <button id="clearButton">Clear Canvas</button>
+        <button id="saveButton">Save Drawing</button>
+    </div>
+    <script src="canvas.js"></script>
+</body>
+</html>
