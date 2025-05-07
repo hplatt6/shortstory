@@ -51,8 +51,29 @@
       ctx.scale(scale, scale);
     }
 
+    function preserveDrawingOnResize() {
+      const savedData = canvas.toDataURL();
+      setCanvasSize();
+
+      const img = new Image();
+      img.onload = function () {
+        ctx.drawImage(
+          img,
+          0,
+          0,
+          canvas.width / (window.devicePixelRatio || 1),
+          canvas.height / (window.devicePixelRatio || 1)
+        );
+      };
+      img.src = savedData;
+    }
+
+    // Initial canvas setup
     setCanvasSize();
-    window.addEventListener('resize', setCanvasSize);
+
+    // Handle resizing and orientation changes
+    window.addEventListener('resize', preserveDrawingOnResize);
+    window.addEventListener('orientationchange', preserveDrawingOnResize);
 
     function clearCanvas() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -184,7 +205,7 @@
       const dataURL = canvas.toDataURL('image/png');
       const base64Data = dataURL.replace(/^data:image\/(png|jpeg);base64,/, '');
 
-      const pipedreamEndpoint = 'https://eokgo6mythi361d.m.pipedream.net';
+      const pipedreamEndpoint = 'https://eohcxmdz17lowq5.m.pipedream.net';
       console.log("📤 Sending drawing to Pipedream...");
       console.log("📎 uniqueId:", idToUse);
 
@@ -222,35 +243,6 @@
     const saveButton = document.getElementById("saveButton");
     if (saveButton) {
       saveButton.addEventListener("click", sendBase64ToPipedream);
-    }
-
-    function handleOrientationChange() {
-      if (localStorage.getItem('canvasData')) {
-        const savedData = JSON.parse(localStorage.getItem('canvasData'));
-        const img = new Image();
-        img.onload = function () {
-          setTimeout(() => {
-            setCanvasSize();
-            ctx.drawImage(img, 0, 0, savedData.width, savedData.height, 0, 0, canvas.width, canvas.height);
-          }, 100);
-        };
-        img.src = savedData.data;
-      } else {
-        setCanvasSize();
-      }
-    }
-
-    window.addEventListener('orientationchange', function () {
-      localStorage.setItem('canvasData', JSON.stringify({
-        data: canvas.toDataURL(),
-        width: canvas.width,
-        height: canvas.height
-      }));
-      handleOrientationChange();
-    });
-
-    if (localStorage.getItem('canvasData')) {
-      handleOrientationChange();
     }
   }
 
