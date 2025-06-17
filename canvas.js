@@ -6,18 +6,70 @@
       return;
     }
 
-    let uniqueId = null;
-    let retryCount = 0;
-    const maxRetries = 10;
-    const retryDelay = 500;
+    let masterid = null;
 
-    // Receive uniqueId from parent
+    // 1️⃣ Message listener for parent iframe communication
     window.addEventListener('message', function (event) {
-      if (event.data && event.data.type === 'setUniqueId') {
-        console.log("✅ Received uniqueId from parent:", event.data.uniqueId);
-        uniqueId = event.data.uniqueId;
+      if (event.data && event.data.type === 'setmasterid') {
+        console.log("✅ Received masterid from parent:", event.data.masterid);
+        masterid = event.data.masterid;
+        localStorage.setItem('cachedmasterid', masterid);
       }
     }, false);
+
+    // 2️⃣ Robust fallback to retrieve masterid
+    function tryToGetmasterid() {
+      let attempts = 0;
+      const maxAttempts = 10;
+      const intervalMs = 500;
+
+      function check() {
+        attempts++;
+
+        if (!masterid && typeof Qualtrics !== 'undefined' && Qualtrics.SurveyEngine) {
+          const qid = Qualtrics.SurveyEngine.getEmbeddedData('masterid');
+          if (qid) {
+            console.log(`[✔] Found masterid from Qualtrics: ${qid}`);
+            masterid = qid;
+            localStorage.setItem('cachedmasterid', masterid);
+            return;
+          }
+        }
+
+        if (!masterid) {
+          const urlParams = new URLSearchParams(window.location.search);
+          const urlId = urlParams.get('masterid');
+          if (urlId) {
+            console.log(`[✔] Found masterid from URL: ${urlId}`);
+            masterid = urlId;
+            localStorage.setItem('cachedmasterid', masterid);
+            return;
+          }
+        }
+
+        if (!masterid) {
+          const stored = localStorage.getItem('cachedmasterid');
+          if (stored) {
+            console.log(`[✔] Found masterid from localStorage: ${stored}`);
+            masterid = stored;
+            return;
+          }
+        }
+
+        if (masterid) return;
+
+        if (attempts < maxAttempts) {
+          console.warn(`[!] masterid not yet found, retrying... (${attempts}/${maxAttempts})`);
+          setTimeout(check, intervalMs);
+        } else {
+          console.error(`[✖] Failed to retrieve masterid. Using "missing-id".`);
+        }
+      }
+
+      check();
+    }
+
+    tryToGetmasterid();
 
     const ctx = canvas.getContext('2d');
     if (!ctx) {
@@ -28,27 +80,12 @@
     let isDrawing = false;
     let brushColor = '#000000';
     let brushSize = 5;
-    let lastPos = null;
-
-    // Set line style for smoother appearance
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
 
     function setCanvasSize() {
-      const container = document.getElementById('canvasContainer');
-      const width = container.offsetWidth;
-      const height = width * 3 / 5;
-
-      const scale = window.devicePixelRatio || 1;
-
-      canvas.width = width * scale;
-      canvas.height = height * scale;
-
-      canvas.style.width = width + 'px';
-      canvas.style.height = height + 'px';
-
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.scale(scale, scale);
+      canvas.width = document.getElementById('canvasContainer').offsetWidth * 2; // High-res
+      canvas.height = canvas.width * 3 / 5;
+      canvas.style.width = '100%';
+      canvas.style.height = 'auto';
     }
 
     function preserveDrawingOnResize() {
@@ -57,13 +94,7 @@
 
       const img = new Image();
       img.onload = function () {
-        ctx.drawImage(
-          img,
-          0,
-          0,
-          canvas.width / (window.devicePixelRatio || 1),
-          canvas.height / (window.devicePixelRatio || 1)
-        );
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       };
       img.src = savedData;
     }
@@ -71,7 +102,7 @@
     // Initial canvas setup
     setCanvasSize();
 
-    // Handle resizing and orientation changes
+    // Redraw drawing on resize or orientation change
     window.addEventListener('resize', preserveDrawingOnResize);
     window.addEventListener('orientationchange', preserveDrawingOnResize);
 
@@ -90,6 +121,10 @@
       ctx.lineWidth = size;
     }
 
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.imageSmoothingEnabled = true;
+
     setBrushColor(brushColor);
     setBrushSize(brushSize);
 
@@ -98,74 +133,56 @@
       const scaleX = canvas.width / rect.width;
       const scaleY = canvas.height / rect.height;
       return {
-        x: (e.clientX - rect.left) * scaleX / (window.devicePixelRatio || 1),
-        y: (e.clientY - rect.top) * scaleY / (window.devicePixelRatio || 1)
+        x: (e.clientX - rect.left) * scaleX,
+        y: (e.clientY - rect.top) * scaleY
       };
     }
 
     canvas.addEventListener('mousedown', function (e) {
       isDrawing = true;
-      lastPos = getMousePos(canvas, e);
       ctx.beginPath();
-      ctx.moveTo(lastPos.x, lastPos.y);
-      e.preventDefault();
+      const pos = getMousePos(canvas, e);
+      ctx.moveTo(pos.x, pos.y);
     });
 
     canvas.addEventListener('mousemove', function (e) {
-      if (!isDrawing) return;
-      const pos = getMousePos(canvas, e);
-      const midPoint = {
-        x: (lastPos.x + pos.x) / 2,
-        y: (lastPos.y + pos.y) / 2
-      };
-      ctx.quadraticCurveTo(lastPos.x, lastPos.y, midPoint.x, midPoint.y);
-      ctx.stroke();
-      lastPos = pos;
+      if (isDrawing) {
+        const pos = getMousePos(canvas, e);
+        ctx.lineTo(pos.x, pos.y);
+        ctx.stroke();
+      }
     });
 
     canvas.addEventListener('mouseup', () => isDrawing = false);
     canvas.addEventListener('mouseout', () => isDrawing = false);
 
-    function getTouchPos(e) {
-      const rect = canvas.getBoundingClientRect();
-      const touch = e.touches[0];
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
-      return {
-        x: (touch.clientX - rect.left) * scaleX / (window.devicePixelRatio || 1),
-        y: (touch.clientY - rect.top) * scaleY / (window.devicePixelRatio || 1)
-      };
-    }
-
     function handleTouchStart(e) {
       e.preventDefault();
       isDrawing = true;
-      lastPos = getTouchPos(e);
+      const touch = e.touches[0];
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
       ctx.beginPath();
-      ctx.moveTo(lastPos.x, lastPos.y);
+      ctx.moveTo((touch.clientX - rect.left) * scaleX, (touch.clientY - rect.top) * scaleY);
     }
 
     function handleTouchMove(e) {
       e.preventDefault();
-      if (!isDrawing) return;
-      const pos = getTouchPos(e);
-      const midPoint = {
-        x: (lastPos.x + pos.x) / 2,
-        y: (lastPos.y + pos.y) / 2
-      };
-      ctx.quadraticCurveTo(lastPos.x, lastPos.y, midPoint.x, midPoint.y);
-      ctx.stroke();
-      lastPos = pos;
-    }
-
-    function handleTouchEnd() {
-      isDrawing = false;
+      if (isDrawing) {
+        const touch = e.touches[0];
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        ctx.lineTo((touch.clientX - rect.left) * scaleX, (touch.clientY - rect.top) * scaleY);
+        ctx.stroke();
+      }
     }
 
     canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
     canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
-    canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
-    canvas.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+    canvas.addEventListener('touchend', () => isDrawing = false, { passive: false });
+    canvas.addEventListener('touchcancel', () => isDrawing = false, { passive: false });
 
     document.getElementById('colorPicker').addEventListener('input', function () {
       setBrushColor(this.value);
@@ -186,64 +203,40 @@
       clearCanvas();
     });
 
-    function sendBase64ToPipedream() {
-      if (!uniqueId) {
-        if (retryCount < maxRetries) {
-          retryCount++;
-          console.warn(`[!] uniqueId not yet found, retrying... (${retryCount}/${maxRetries})`);
-          setTimeout(sendBase64ToPipedream, retryDelay);
-        } else {
-          console.error("❌ uniqueId still missing after retries. Sending with 'missing-id'.");
-          doSend("missing-id");
-        }
-        return;
-      }
-      doSend(uniqueId);
-    }
-
-    function doSend(idToUse) {
+    document.getElementById('saveButton').addEventListener('click', function () {
       const dataURL = canvas.toDataURL('image/png');
       const base64Data = dataURL.replace(/^data:image\/(png|jpeg);base64,/, '');
+      const pipedreamEndpoint = 'https://eokgo6mythi361d.m.pipedream.net';
 
-      const pipedreamEndpoint = 'https://eohcxmdz17lowq5.m.pipedream.net';
       console.log("📤 Sending drawing to Pipedream...");
-      console.log("📎 uniqueId:", idToUse);
+      console.log("📎 masterid:", masterid || "missing-id");
 
       fetch(pipedreamEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           imageData: base64Data,
-          uniqueId: idToUse
+          masterid: masterid || "missing-id"
         })
       })
         .then(response => {
           if (response.ok) {
-            console.log('✅ Successfully sent to Pipedream.');
+            console.log("✅ Successfully sent to Pipedream.");
             const msg = document.getElementById('saveMessage');
             if (msg) {
               msg.style.display = 'block';
               msg.style.opacity = '1';
               setTimeout(() => {
                 msg.style.opacity = '0';
-                setTimeout(() => {
-                  msg.style.display = 'none';
-                }, 500);
+                setTimeout(() => msg.style.display = 'none', 500);
               }, 2000);
             }
           } else {
-            console.error('❌ Failed to send to Pipedream.');
+            console.error("❌ Failed to send to Pipedream.");
           }
         })
-        .catch(error => {
-          console.error('❌ Error sending to Pipedream:', error);
-        });
-    }
-
-    const saveButton = document.getElementById("saveButton");
-    if (saveButton) {
-      saveButton.addEventListener("click", sendBase64ToPipedream);
-    }
+        .catch(error => console.error("🚫 Error sending to Pipedream:", error));
+    });
   }
 
   initCanvas();
